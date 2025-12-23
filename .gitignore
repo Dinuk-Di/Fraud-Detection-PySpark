@@ -1,0 +1,9 @@
+.env
+*.sql
+*.ps1
+*.vscode
+*.pkl
+*.log
+*.csv
+*.json
+*.pdf
