@@ -1,17 +1,17 @@
-FROM bitnami/spark:3.5.0
+FROM apache/spark:3.5.0
 
 WORKDIR /app
 
 USER root
-RUN install_packages python3-pip
-RUN pip install pandas numpy scikit-learn joblib
+RUN apt-get update && \
+    apt-get install -y python3-pip && \
+    pip3 install pandas numpy scikit-learn joblib
 
-USER 1001
+USER 185
 COPY scripts/spark_streaming.py .
 COPY ml_model/ /app/ml_model/
 
-# We need to wait for Kafka and Postgres to be ready. 
-# In a real setup, we use a wait-for-it script. Here we rely on restart_policy or simple sleep in CMD.
-CMD ["/opt/bitnami/spark/bin/spark-submit", \
+# Spark submit path for apache/spark image is /opt/spark/bin/spark-submit
+CMD ["/opt/spark/bin/spark-submit", \
     "--packages", "org.apache.spark:spark-sql-kafka-0-10_2.12:3.5.0,org.postgresql:postgresql:42.6.0", \
     "spark_streaming.py"]
