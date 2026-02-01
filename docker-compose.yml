@@ -1,16 +1,39 @@
+# ============================================================================
+# Fraud Detection Pipeline - Docker Compose (Industry-Standard Local Setup)
+# ============================================================================
+# Components:
+#   - Kafka (Zookeeper) : Message broker for real-time ingestion
+#   - Spark             : Streaming & Batch processing
+#   - PostgreSQL        : Operational database for alerts & reports
+#   - Airflow           : Orchestration (Scheduler + Webserver)
+# ============================================================================
+
 services:
+  # --------------------------------------------------------------------------
+  # MESSAGING LAYER
+  # --------------------------------------------------------------------------
   zookeeper:
-    image: confluentinc/cp-zookeeper:7.4.0
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
     environment:
       ZOOKEEPER_CLIENT_PORT: 2181
       ZOOKEEPER_TICK_TIME: 2000
     ports:
       - "2181:2181"
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - fraud-net
 
   kafka:
-    image: confluentinc/cp-kafka:7.4.0
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
     depends_on:
-      - zookeeper
+      zookeeper:
+        condition: service_healthy
     ports:
       - "9092:9092"
       - "29092:29092"
@@ -21,9 +44,21 @@ services:
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 10s
+      timeout: 10s
+      retries: 5
+    networks:
+      - fraud-net
 
+  # --------------------------------------------------------------------------
+  # DATABASE LAYER
+  # --------------------------------------------------------------------------
   postgres:
-    image: postgres:13
+    image: postgres:15-alpine
+    container_name: postgres
     environment:
       POSTGRES_USER: user
       POSTGRES_PASSWORD: password
@@ -32,107 +67,166 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - ./db/init.sql:/docker-entrypoint-initdb.d/init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U user -d fraud_detection"]
       interval: 5s
       timeout: 5s
       retries: 5
+    networks:
+      - fraud-net
 
-  airflow-init:
-    image: apache/airflow:2.7.1
+  # --------------------------------------------------------------------------
+  # PROCESSING LAYER
+  # --------------------------------------------------------------------------
+  spark-streaming:
+    build:
+      context: .
+      dockerfile: docker/spark.Dockerfile
+    container_name: spark-streaming
     environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@postgres/airflow_db
-      - AIRFLOW_ADMIN_USER=admin
-      - AIRFLOW_ADMIN_PASSWORD=admin
-    command: >
-      bash -c "airflow db init &&
-      airflow users create --role Admin --username admin --email admin@example.com --firstname Admin --lastname User --password admin"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_TOPIC: transactions
+      DB_HOST: postgres
+      DB_USER: user
+      DB_PASSWORD: password
+      CHECKPOINT_DIR: /data/checkpoints
+      RAW_DATA_DIR: /data/raw
+    volumes:
+      - spark_data:/data
     depends_on:
+      kafka:
+        condition: service_healthy
       postgres:
         condition: service_healthy
+    networks:
+      - fraud-net
+    restart: on-failure
 
-  airflow-webserver:
-    image: apache/airflow:2.7.1
-    command: webserver
-    ports:
-      - "8081:8080"
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@postgres/airflow_db
-      - AIRFLOW__CORE__FERNET_KEY=FB0o_zt4e3ZkkFSIVTZUR_af841fLE46veoelU5hU5M=
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-      - AIRFLOW_ADMIN_USER=admin
-      - AIRFLOW_ADMIN_PASSWORD=admin
-    volumes:
-      - ./dags:/opt/airflow/dags
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-
-  airflow-scheduler:
-    image: apache/airflow:2.7.1
-    command: scheduler
-    environment:
-      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
-      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://user:password@postgres/airflow_db
-      - AIRFLOW__CORE__FERNET_KEY=FB0o_zt4e3ZkkFSIVTZUR_af841fLE46veoelU5hU5M=
-      - AIRFLOW__CORE__LOAD_EXAMPLES=False
-    volumes:
-      - ./dags:/opt/airflow/dags
-    depends_on:
-      airflow-init:
-        condition: service_completed_successfully
-
-  # Application Services
-
+  # --------------------------------------------------------------------------
+  # INGESTION LAYER
+  # --------------------------------------------------------------------------
   producer:
     build:
       context: .
-      dockerfile: Dockerfile.producer
+      dockerfile: docker/producer.Dockerfile
+    container_name: producer
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-    depends_on:
-      - kafka
-
-  spark-processor:
-    build:
-      context: .
-      dockerfile: Dockerfile.spark
-    environment:
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      DB_HOST: postgres
-      DB_USER: user
-      DB_PASSWORD: password
     depends_on:
       kafka:
-        condition: service_started
+        condition: service_healthy
+    networks:
+      - fraud-net
+    restart: on-failure
+
+  # --------------------------------------------------------------------------
+  # ORCHESTRATION LAYER (AIRFLOW)
+  # --------------------------------------------------------------------------
+  airflow-init:
+    image: apache/airflow:2.8.0-python3.10
+    container_name: airflow-init
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://user:password@postgres/fraud_detection
+      AIRFLOW__CORE__FERNET_KEY: FB0o_zt4e3ZkkFSIVTZUR_af841fLE46veoelU5hU5M=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    entrypoint: /bin/bash
+    command: >
+      -c "airflow db migrate &&
+          airflow users create --role Admin --username admin --email admin@example.com 
+          --firstname Admin --lastname User --password admin || true"
+    depends_on:
       postgres:
         condition: service_healthy
+    networks:
+      - fraud-net
 
-  backend:
+  airflow-webserver:
+    image: apache/airflow:2.8.0-python3.10
+    container_name: airflow-webserver
+    command: webserver
+    ports:
+      - "8080:8080"
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://user:password@postgres/fraud_detection
+      AIRFLOW__CORE__FERNET_KEY: FB0o_zt4e3ZkkFSIVTZUR_af841fLE46veoelU5hU5M=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - fraud-net
+    restart: on-failure
+
+  airflow-scheduler:
+    image: apache/airflow:2.8.0-python3.10
+    container_name: airflow-scheduler
+    command: scheduler
+    environment:
+      AIRFLOW__CORE__EXECUTOR: LocalExecutor
+      AIRFLOW__DATABASE__SQL_ALCHEMY_CONN: postgresql+psycopg2://user:password@postgres/fraud_detection
+      AIRFLOW__CORE__FERNET_KEY: FB0o_zt4e3ZkkFSIVTZUR_af841fLE46veoelU5hU5M=
+      AIRFLOW__CORE__LOAD_EXAMPLES: "false"
+    volumes:
+      - ./dags:/opt/airflow/dags
+    depends_on:
+      airflow-init:
+        condition: service_completed_successfully
+    networks:
+      - fraud-net
+    restart: on-failure
+
+  # --------------------------------------------------------------------------
+  # API LAYER
+  # --------------------------------------------------------------------------
+  api:
     build:
       context: .
-      dockerfile: Dockerfile.backend
+      dockerfile: docker/api.Dockerfile
+    container_name: api
+    ports:
+      - "8000:8000"
     environment:
       DB_HOST: postgres
       DB_USER: user
       DB_PASSWORD: password
-    ports:
-      - "8000:8000"
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
     depends_on:
       postgres:
         condition: service_healthy
+      kafka:
+        condition: service_healthy
+    networks:
+      - fraud-net
+    restart: on-failure
 
+  # --------------------------------------------------------------------------
+  # FRONTEND LAYER
+  # --------------------------------------------------------------------------
   frontend:
     build:
-      context: .
-      dockerfile: Dockerfile.frontend
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
     ports:
-      - "5173:4173"
+      - "3000:80"
     depends_on:
-      - backend
+      - api
+    networks:
+      - fraud-net
+    restart: on-failure
 
+# ============================================================================
+# SHARED RESOURCES
+# ============================================================================
 volumes:
   postgres_data:
+  spark_data:
+
+networks:
+  fraud-net:
+    driver: bridge

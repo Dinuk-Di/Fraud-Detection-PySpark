@@ -1,9 +1,45 @@
-.env
-*.sql
-*.ps1
-*.vscode
-*.pkl
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg
+*.egg-info/
+dist/
+build/
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Spark
 *.log
-*.csv
-*.json
-*.pdf
+spark-warehouse/
+metastore_db/
+derby.log
+
+# Data directories (mounted volumes, not committed)
+data/
+/tmp/
+
+# Docker
+*.tar
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+*.env.development
+
+# Jupyter
+.ipynb_checkpoints/
