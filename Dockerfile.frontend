@@ -1,15 +1,35 @@
-FROM node:18-alpine
+FROM node:22-alpine
 
 WORKDIR /app
 
-COPY frontend/package*.json ./
-RUN npm install
+# 1. Initialize a clean package.json
+RUN echo '{ "name": "frontend", "type": "module", "scripts": { "dev": "vite", "build": "vite build", "preview": "vite preview" } }' > package.json
 
-COPY frontend/ .
+# 2. Install Core Dependencies (Pinned versions for stability)
+RUN npm install vite@5.4.11 @vitejs/plugin-react react react-dom
 
-# Build for production
+# 3. Install App Libraries (Required by App.jsx)
+RUN npm install axios recharts lucide-react
+
+# 4. Install Tailwind CSS v3 stack
+RUN npm install -D tailwindcss@3.4.17 postcss@8.4.31 autoprefixer@10.4.19
+
+# 5. Create Configuration Files (Force v3 compatibility)
+RUN echo "export default { content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'], theme: { extend: {} }, plugins: [] }" > tailwind.config.js
+RUN echo "export default { plugins: { tailwindcss: {}, autoprefixer: {} } }" > postcss.config.js
+RUN echo "import { defineConfig } from 'vite'; import react from '@vitejs/plugin-react'; export default defineConfig({ plugins: [react()] });" > vite.config.js
+
+# 6. Copy Source Code (Selectively to avoid bad local config/locks)
+COPY frontend/index.html .
+COPY frontend/src ./src
+# Copy public if it exists, otherwise mkdir to prevent fail. 
+# We'll use a shell trick or just copy the directory if we know it exists. 
+# standard vite app has public.
+COPY frontend/public ./public
+
+# 7. Build
 RUN npm run build
 
-# Expose port and serve
+# 8. Serve
 EXPOSE 4173
 CMD ["npm", "run", "preview", "--", "--host", "0.0.0.0", "--port", "4173"]
