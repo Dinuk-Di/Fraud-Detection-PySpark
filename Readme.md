@@ -1,6 +1,6 @@
 # FinTech Fraud Detection Pipeline — Lambda Architecture
 
-**Applied Big Data Engineering (EC8207) — Mini Project**  
+**Applied Big Data Engineering (EC8207) — Mini Project**
 **Scenario 2: FinTech Fraud Detection Pipeline**
 
 A production-grade Lambda Architecture implementation for real-time fraud detection using Apache Kafka, Spark Structured Streaming, Airflow, and PostgreSQL.
@@ -16,10 +16,10 @@ A production-grade Lambda Architecture implementation for real-time fraud detect
 5. [Quick Start Guide](#quick-start-guide)
 6. [Detailed Setup Instructions](#detailed-setup-instructions)
 7. [Running the Pipeline](#running-the-pipeline)
-8. [Monitoring & Testing](#monitoring--testing)
+8. [Monitoring &amp; Testing](#monitoring--testing)
 9. [Output Reports](#output-reports)
 10. [Event Time vs. Processing Time](#event-time-vs-processing-time)
-11. [Ethics & Data Governance](#ethics--data-governance)
+11. [Ethics &amp; Data Governance](#ethics--data-governance)
 12. [Database Schema](#database-schema)
 13. [Troubleshooting](#troubleshooting)
 14. [Performance Tuning](#performance-tuning)
@@ -32,23 +32,23 @@ This project implements a **production-grade fraud detection system** for a digi
 
 ### Key Features
 
-✅ **Real-time Fraud Detection**: HIGH_VALUE and IMPOSSIBLE_TRAVEL patterns detected within seconds  
-✅ **Controlled Fraud Injection**: 5% synthetic fraud rate for realistic testing  
-✅ **Event-time Windowing**: 10-minute tumbling windows with 5-minute watermarks  
-✅ **Hourly ETL Pipeline**: 6-hour batch reconciliation jobs  
-✅ **Multi-stage Storage**: Speed layer (PostgreSQL) + Batch layer (Parquet warehouse)  
-✅ **Production-ready**: Docker containerization with health checks  
+✅ **Real-time Fraud Detection**: HIGH_VALUE and IMPOSSIBLE_TRAVEL patterns detected within seconds
+✅ **Controlled Fraud Injection**: 5% synthetic fraud rate for realistic testing
+✅ **Event-time Windowing**: 10-minute tumbling windows with 5-minute watermarks
+✅ **Hourly ETL Pipeline**: 6-hour batch reconciliation jobs
+✅ **Multi-stage Storage**: Speed layer (PostgreSQL) + Batch layer (Parquet warehouse)
+✅ **Production-ready**: Docker containerization with health checks
 
 ### Quick Metrics
 
-| Metric | Value |
-|--------|-------|
-| **Transactions/Second** | 2 TPS (configurable) |
-| **Fraud Injection Rate** | 5% (configurable) |
-| **Detection Latency** | < 5 seconds |
-| **High-Value Threshold** | $5,000 USD |
-| **Impossible Travel Window** | 10 minutes |
-| **Watermark Tolerance** | 5 minutes (late data) |
+| Metric                             | Value                 |
+| ---------------------------------- | --------------------- |
+| **Transactions/Second**      | 2 TPS (configurable)  |
+| **Fraud Injection Rate**     | 5% (configurable)     |
+| **Detection Latency**        | < 5 seconds           |
+| **High-Value Threshold**     | $5,000 USD            |
+| **Impossible Travel Window** | 10 minutes            |
+| **Watermark Tolerance**      | 5 minutes (late data) |
 
 ---
 
@@ -58,12 +58,12 @@ This project implements a **production-grade fraud detection system** for a digi
 
 The choice of Lambda Architecture addresses the dual requirements of fraud detection:
 
-| Aspect | Justification |
-|--------|---------------|
-| **Speed Layer** | Fraud must be detected within seconds, not hours |
+| Aspect                | Justification                                           |
+| --------------------- | ------------------------------------------------------- |
+| **Speed Layer** | Fraud must be detected within seconds, not hours        |
 | **Batch Layer** | Compliance & auditing require historical reconciliation |
-| **Scalability** | Separates real-time and batch concerns |
-| **Resilience** | Batch layer can recompute if real-time fails |
+| **Scalability** | Separates real-time and batch concerns                  |
+| **Resilience**  | Batch layer can recompute if real-time fails            |
 
 ### Component Selection & Justification
 
@@ -71,15 +71,16 @@ The choice of Lambda Architecture addresses the dual requirements of fraud detec
 
 **Why Kafka?**
 
-| Feature | Benefit |
-|---------|---------|
+| Feature                      | Benefit                                                          |
+| ---------------------------- | ---------------------------------------------------------------- |
 | **Partitioned Topics** | Horizontal scalability (4 partitions for `transactions` topic) |
-| **Durability** | 7-day retention satisfies financial audit trail requirements |
-| **KRaft Mode** | Eliminates ZooKeeper dependency, simplifies deployment |
-| **Consumer Groups** | `fraud-detector-spark` group tracks offset independently |
-| **Fault Tolerance** | Survives broker failures with replication |
+| **Durability**         | 7-day retention satisfies financial audit trail requirements     |
+| **KRaft Mode**         | Eliminates ZooKeeper dependency, simplifies deployment           |
+| **Consumer Groups**    | `fraud-detector-spark` group tracks offset independently       |
+| **Fault Tolerance**    | Survives broker failures with replication                        |
 
 **Alternative Considered**: RabbitMQ
+
 - ❌ Simpler but lacks partitioning/scaling
 - ❌ No offset management
 - ❌ Not optimized for high-volume streaming
@@ -92,13 +93,13 @@ The choice of Lambda Architecture addresses the dual requirements of fraud detec
 
 **Why Spark?**
 
-| Aspect | Spark | Storm |
-|--------|-------|-------|
-| **Latency** | 100-200ms | <100ms |
-| **Guarantees** | Exactly-once ✓ | At-least-once ✗ |
-| **Event-time** | Native support ✓ | Complex workaround ✗ |
-| **Batch Integration** | Native ✓ | Separate ✗ |
-| **SQL Support** | Full ✓ | Limited ✗ |
+| Aspect                      | Spark             | Storm                 |
+| --------------------------- | ----------------- | --------------------- |
+| **Latency**           | 100-200ms         | <100ms                |
+| **Guarantees**        | Exactly-once ✓   | At-least-once ✗      |
+| **Event-time**        | Native support ✓ | Complex workaround ✗ |
+| **Batch Integration** | Native ✓         | Separate ✗           |
+| **SQL Support**       | Full ✓           | Limited ✗            |
 
 **Exactly-once Semantics**: Critical for financial fraud (cannot lose or duplicate fraud alerts)
 
@@ -110,6 +111,7 @@ If restart at Checkpoint 1 → Skip duplicates, resume from 101
 ```
 
 **Alternative Considered**: Apache Storm
+
 - ❌ Tuple-at-a-time processing (complexity)
 - ❌ No SQL; manual aggregation for windows
 - ❌ Separate batch layer needed (two codebases)
@@ -122,16 +124,17 @@ If restart at Checkpoint 1 → Skip duplicates, resume from 101
 
 **Why Airflow?**
 
-| Capability | Value |
-|-----------|-------|
-| **DAG-based** | Dependency graph is explicit: T1 → T2 → T3 |
-| **Scheduling** | Cron syntax for "every 6 hours" |
-| **XCom Messaging** | Task-to-task communication (window_start, fraud_count) |
-| **Retries & Alerting** | 2x automatic retries with 5-minute backoff |
-| **Web UI** | http://localhost:8080 for monitoring |
-| **Integration** | PythonOperator executes our fraud ETL tasks |
+| Capability                   | Value                                                  |
+| ---------------------------- | ------------------------------------------------------ |
+| **DAG-based**          | Dependency graph is explicit: T1 → T2 → T3           |
+| **Scheduling**         | Cron syntax for "every 6 hours"                        |
+| **XCom Messaging**     | Task-to-task communication (window_start, fraud_count) |
+| **Retries & Alerting** | 2x automatic retries with 5-minute backoff             |
+| **Web UI**             | http://localhost:8080 for monitoring                   |
+| **Integration**        | PythonOperator executes our fraud ETL tasks            |
 
 **Alternative Considered**: Prefect, Dagster
+
 - ❌ Newer but less mature
 - ❌ Fewer examples for financial use cases
 
@@ -143,15 +146,16 @@ If restart at Checkpoint 1 → Skip duplicates, resume from 101
 
 **Why PostgreSQL?**
 
-| Feature | Fraud Detection Use Case |
-|---------|-------------------------|
-| **ACID Compliance** | Essential for financial transactions |
-| **Indexing** | Fast queries: `(user_id, event_timestamp)` |
-| **JDBC Integration** | Spark can write directly via JDBC |
-| **Views** | Pre-computed `fraud_by_category` for BI |
-| **Audit Trail** | Immutable transaction log + timestamps |
+| Feature                    | Fraud Detection Use Case                    |
+| -------------------------- | ------------------------------------------- |
+| **ACID Compliance**  | Essential for financial transactions        |
+| **Indexing**         | Fast queries:`(user_id, event_timestamp)` |
+| **JDBC Integration** | Spark can write directly via JDBC           |
+| **Views**            | Pre-computed `fraud_by_category` for BI   |
+| **Audit Trail**      | Immutable transaction log + timestamps      |
 
 **Alternative Considered**: Cassandra
+
 - ❌ Eventual consistency (unacceptable for fraud)
 - ❌ Better for analytics, not transactional integrity
 
@@ -163,14 +167,15 @@ If restart at Checkpoint 1 → Skip duplicates, resume from 101
 
 **Why Parquet?**
 
-| Property | Benefit |
-|----------|---------|
+| Property                  | Benefit                                                   |
+| ------------------------- | --------------------------------------------------------- |
 | **Columnar Format** | Efficient for analytical queries (fraud trends over time) |
-| **Compression** | ~80% reduction vs. CSV |
-| **Partitioning** | Partition by date = fast historical queries |
-| **Compliance** | Immutable archive suitable for audit trails |
+| **Compression**     | ~80% reduction vs. CSV                                    |
+| **Partitioning**    | Partition by date = fast historical queries               |
+| **Compliance**      | Immutable archive suitable for audit trails               |
 
 **Partition Scheme**:
+
 ```
 /data/warehouse/
 ├── date=2026-05-08/validated_batch_00.parquet
@@ -189,106 +194,60 @@ Query example: "Find all validated transactions in May" → Only scan relevant d
 ### System Diagram (Complete Lambda Pipeline)
 
 ```
-┌────────────────────────────────────────────────────────────────────────────┐
-│                    FRAUD DETECTION PIPELINE (Lambda)                       │
-│                                                                            │
-│  ┌─ DATA INGESTION ─────────────────────────────────────────────────┐    │
-│  │                                                                  │    │
-│  │  Python Producer (transaction_producer.py)                      │    │
-│  │  ├─ Generates synthetic transactions @ 2 TPS                   │    │
-│  │  ├─ 20 simulated users across 8 countries                      │    │
-│  │  ├─ Controlled fraud injection:                                │    │
-│  │  │  • HIGH_VALUE: amount > $5,000 (5% rate)                  │    │
-│  │  │  • IMPOSSIBLE_TRAVEL: 2 countries in 10min (5% rate)      │    │
-│  │  └─ Pushes JSON → Kafka                                        │    │
-│  │                                                                  │    │
-│  └──────────────────────────────────────────────────────────────────┘    │
-│            ▼                                                               │
-│  ┌─ MESSAGE BROKER: Apache Kafka 3.8 (KRaft) ─────────────────────┐     │
-│  │                                                                 │     │
-│  │  Topic: "transactions"                                         │     │
-│  │  ├─ Partitions: 4 (scales horizontally)                        │     │
-│  │  ├─ Replication: 1                                             │     │
-│  │  ├─ Retention: 7 days                                          │     │
-│  │  └─ Consumer Group: fraud-detector-spark (offset tracking)     │     │
-│  │                                                                 │     │
-│  │  Topic: "fraud-alerts" (optional fast channel)                │     │
-│  │                                                                 │     │
-│  └─────────────────────────────────────────────────────────────────┘     │
-│            ▼                                                               │
-│  ┌─ SPEED LAYER: Apache Spark Structured Streaming ──────────────┐      │
-│  │                                                                │      │
-│  │  Master: spark-master:7077                                   │      │
-│  │                                                                │      │
-│  │  Stream 1: HIGH_VALUE Detection                              │      │
-│  │  ├─ Rule: amount > $5,000                                   │      │
-│  │  ├─ Latency: < 5 seconds (per-row filter)                  │      │
-│  │  └─ Output: fraud_alerts table                              │      │
-│  │                                                                │      │
-│  │  Stream 2: IMPOSSIBLE_TRAVEL Detection                       │      │
-│  │  ├─ Rule: 2+ countries in 10-min window                      │      │
-│  │  ├─ Window: 10-min tumbling (event-time)                    │      │
-│  │  ├─ Watermark: 5 min (late data tolerance)                  │      │
-│  │  └─ Output: fraud_alerts table                              │      │
-│  │                                                                │      │
-│  │  Stream 3: VALIDATED Transactions                            │      │
-│  │  ├─ Rule: amount ≤ $5,000 AND no impossible travel          │      │
-│  │  └─ Output: validated_transactions table                     │      │
-│  │                                                                │      │
-│  └────────────────────────────────────────────────────────────────┘      │
-│            ▼                                                               │
-│  ┌─ SPEED LAYER STORAGE: PostgreSQL ────────────────────────────┐       │
-│  │                                                              │       │
-│  │  fraud_alerts (indexed: user_id, fraud_reason, detected_at)│       │
-│  │  validated_transactions (indexed: user_id, event_timestamp)│       │
-│  │  transactions_raw (audit log)                              │       │
-│  │                                                              │       │
-│  │  Real-time availability: < 5 second latency               │       │
-│  │                                                              │       │
-│  └──────────────────────────────────────────────────────────────┘       │
-│            ▼                                                               │
-│  ┌─ BATCH LAYER: Apache Airflow ────────────────────────────────┐       │
-│  │                                                              │       │
-│  │  DAG: fraud_etl_pipeline (every 6 hours)                   │       │
-│  │                                                              │       │
-│  │  T1: extract_window_data                                    │       │
-│  │      └─ SELECT from transactions_raw (last 6h)            │       │
-│  │                                                              │       │
-│  │  T2: reconcile_fraud_vs_valid                              │       │
-│  │      ├─ COUNT frauds, COUNT validated                      │       │
-│  │      └─ PUSH metrics via XCom                              │       │
-│  │                                                              │       │
-│  │  T3: write_parquet                                          │       │
-│  │      └─ INSERT validated → /data/warehouse/date=YYYY-MM-DD│       │
-│  │                                                              │       │
-│  │  T4: insert_reconciliation                                  │       │
-│  │      └─ INSERT 6h summary → reconciliation_reports         │       │
-│  │                                                              │       │
-│  │  T5: generate_fraud_report                                  │       │
-│  │      └─ CSV: fraud_by_category_YYYY-MM-DD_HH.csv          │       │
-│  │                                                              │       │
-│  │  T6: generate_reconciliation_report                         │       │
-│  │      └─ CSV: reconciliation_YYYY-MM-DD_HH.csv              │       │
-│  │                                                              │       │
-│  └──────────────────────────────────────────────────────────────┘       │
-│            ▼                                                               │
-│  ┌─ BATCH LAYER STORAGE: Parquet Data Warehouse ──────────────┐        │
-│  │                                                             │        │
-│  │  Location: /data/warehouse/date=YYYY-MM-DD/                │        │
-│  │  Format: Apache Parquet (columnar, compressed)             │        │
-│  │  Retention: 7+ years (compliance)                          │        │
-│  │                                                             │        │
-│  └─────────────────────────────────────────────────────────────┘        │
-│            ▼                                                               │
-│  ┌─ REPORTING LAYER: CSV Reports ───────────────────────────────┐      │
-│  │                                                              │      │
-│  │  Location: /data/reports/                                  │      │
-│  │  ├─ fraud_by_category_YYYY-MM-DD_HH.csv                    │      │
-│  │  └─ reconciliation_YYYY-MM-DD_HH.csv                        │      │
-│  │                                                              │      │
-│  └──────────────────────────────────────────────────────────────┘      │
-│                                                                           │
-└────────────────────────────────────────────────────────────────────────────┘
+'''```mermaid
+flowchart TD
+    A["🐍 Python Producer\\ntransaction_producer.py\\n• 2 TPS, 20 users, 8 countries\\n• HIGH_VALUE fraud: 5%\\n• IMPOSSIBLE_TRAVEL fraud: 5%"]
+
+    subgraph KAFKA["📨 Apache Kafka 3.8 (KRaft)"]
+        K1["Topic: transactions\\n4 partitions | 7-day retention\\nConsumer Group: fraud-detector-spark"]
+        K2["Topic: fraud-alerts\\n(optional fast channel)"]
+    end
+
+    subgraph SPEED["⚡ Speed Layer — Apache Spark Structured Streaming"]
+        S1["Stream 1: HIGH_VALUE Detection\\namount > $5,000 → fraud_alerts\\nLatency: < 5 seconds"]
+        S2["Stream 2: IMPOSSIBLE_TRAVEL Detection\\n2+ countries in 10-min event-time window\\nWatermark: 5 min"]
+        S3["Stream 3: VALIDATED Transactions\\namount ≤ $5,000 AND no travel fraud"]
+    end
+
+    subgraph PG["🗄️ Speed Layer Storage — PostgreSQL 17"]
+        P1["fraud_alerts\\n(indexed: user_id, fraud_reason, detected_at)"]
+        P2["validated_transactions\\n(indexed: user_id, event_timestamp)"]
+        P3["transactions_raw\\n(audit log)"]
+    end
+
+    subgraph BATCH["🔄 Batch Layer — Apache Airflow 2.10 (every 6h)"]
+        T1["T1: extract_window_data\\nSELECT from transactions_raw (last 6h)"]
+        T2["T2: reconcile_fraud_vs_valid\\nCOUNT frauds & validated → XCom"]
+        T3["T3: write_parquet\\nvalidated → /data/warehouse/date=YYYY-MM-DD"]
+        T4["T4: insert_reconciliation\\n6h summary → reconciliation_reports"]
+        T5["T5: generate_fraud_report\\nCSV: fraud_by_category_YYYY-MM-DD_HH.csv"]
+        T6["T6: generate_reconciliation_report\\nCSV: reconciliation_YYYY-MM-DD_HH.csv"]
+        T1 --> T2 --> T3 --> T4 --> T5 --> T6
+    end
+
+    subgraph WAREHOUSE["🗃️ Batch Layer Storage — Parquet Warehouse"]
+        W1["Location: /data/warehouse/date=YYYY-MM-DD/\\nFormat: Apache Parquet (columnar, compressed)\\nRetention: 7+ years (compliance)"]
+    end
+
+    subgraph REPORTS["📊 Reporting Layer — CSV Reports"]
+        R1["fraud_by_category_YYYY-MM-DD_HH.csv"]
+        R2["reconciliation_YYYY-MM-DD_HH.csv"]
+    end
+
+    A -->|"JSON events"| K1
+    K1 --> S1
+    K1 --> S2
+    K1 --> S3
+    S1 -->|"fraud alert"| P1
+    S2 -->|"fraud alert"| P1
+    S3 -->|"clean tx"| P2
+    K1 -->|"all events"| P3
+    P3 --> T1
+    P1 --> T2
+    P2 --> T2
+    T3 --> W1
+    T5 --> R1
+    T6 --> R2```'''
 ```
 
 ### Data Flow Example: Impossible Travel Detection
@@ -313,7 +272,7 @@ Event Sequence (event_timestamp-based, not processing_time):
   └─ amount: $350.00
 
               IMPOSSIBLE TRAVEL DETECTED!
-              
+            
               Spark groups by (user_id, window):
               ├─ user_123 in window [14:00-14:10]
               ├─ countries_seen = {"US", "GB"}
@@ -326,12 +285,12 @@ Event Sequence (event_timestamp-based, not processing_time):
               PostgreSQL fraud_alerts table (real-time):
               ├─ INSERT alert_1 (5 seconds after event)
               └─ INSERT alert_2 (5 seconds after event)
-              
+            
               Available for immediate:
               ├─ Real-time fraud investigation
               ├─ User notification
               └─ Transaction blocking
-              
+            
               6 hours later, Airflow batch job:
               ├─ SELECT these 2 frauds from fraud_alerts
               ├─ GROUP BY merchant_category
@@ -345,34 +304,35 @@ Event Sequence (event_timestamp-based, not processing_time):
 
 ### Hardware Requirements
 
-| Component | Minimum | Recommended |
-|-----------|---------|-------------|
-| **CPU Cores** | 4 | 8+ |
-| **RAM** | 8 GB | 16+ GB |
-| **Disk Space** | 10 GB | 50+ GB SSD |
-| **Network** | 1 Mbps | 100+ Mbps |
+| Component            | Minimum | Recommended |
+| -------------------- | ------- | ----------- |
+| **CPU Cores**  | 4       | 8+          |
+| **RAM**        | 8 GB    | 16+ GB      |
+| **Disk Space** | 10 GB   | 50+ GB SSD  |
+| **Network**    | 1 Mbps  | 100+ Mbps   |
 
 ### Software Requirements
 
-| Software | Version | Installation |
-|----------|---------|--------------|
+| Software                 | Version | Installation                                            |
+| ------------------------ | ------- | ------------------------------------------------------- |
 | **Docker Desktop** | ≥ 4.25 | [Download](https://www.docker.com/products/docker-desktop) |
-| **Docker Compose** | v2+ | Included in Docker Desktop |
-| **Git** | ≥ 2.20 | [Download](https://git-scm.com/) |
+| **Docker Compose** | v2+     | Included in Docker Desktop                              |
+| **Git**            | ≥ 2.20 | [Download](https://git-scm.com/)                           |
 
 ### Port Requirements
 
-| Service | Port | Purpose |
-|---------|------|---------|
-| **Kafka Broker** | 9092 | Plaintext connections |
-| **Kafka Controller** | 9093 | Internal quorum |
-| **PostgreSQL** | 5432 | Database connections |
-| **Airflow UI** | 8080 | Web dashboard |
-| **Spark Master** | 7077 | Master node |
-| **Spark Master UI** | 8081 | Web UI |
-| **Spark Streaming UI** | 4040 | Streaming jobs |
+| Service                      | Port | Purpose               |
+| ---------------------------- | ---- | --------------------- |
+| **Kafka Broker**       | 9092 | Plaintext connections |
+| **Kafka Controller**   | 9093 | Internal quorum       |
+| **PostgreSQL**         | 5432 | Database connections  |
+| **Airflow UI**         | 8080 | Web dashboard         |
+| **Spark Master**       | 7077 | Master node           |
+| **Spark Master UI**    | 8081 | Web UI                |
+| **Spark Streaming UI** | 4040 | Streaming jobs        |
 
 **Verify ports available:**
+
 ```bash
 # Linux/macOS
 lsof -i :9092
@@ -395,6 +355,7 @@ docker compose logs -f
 ```
 
 **Access the system after 90 seconds:**
+
 - Airflow: http://localhost:8080 (admin/admin)
 - Spark Master: http://localhost:8081
 - Spark Streaming: http://localhost:4040
@@ -481,18 +442,21 @@ docker compose logs airflow-scheduler --tail 10
 Three components run continuously:
 
 **1. Producer** (always on)
+
 ```bash
 # Generates 2 TPS, 5% fraud rate
 docker compose logs -f producer
 ```
 
 **2. Spark Streaming** (always on)
+
 ```bash
 # Detects fraud in real-time
 docker compose logs -f spark-streaming
 ```
 
 **3. Airflow Scheduler** (always on)
+
 ```bash
 # Triggers batch ETL every 6 hours automatically
 docker compose logs -f airflow-scheduler
@@ -535,6 +499,7 @@ docker exec airflow-scheduler \
 **URL**: http://localhost:4040
 
 Displays:
+
 - **Batch Duration**: < 5 seconds (healthy)
 - **Input Rate**: ~2 records/second
 - **Processing Rate**: records/second processed
@@ -546,6 +511,7 @@ Displays:
 **URL**: http://localhost:8080
 
 Shows:
+
 - DAG run history
 - Task execution status
 - Retry attempts
@@ -612,6 +578,7 @@ LIMIT 10;
 **Generated**: Every 6 hours by Airflow task `generate_fraud_report`
 
 **Contents**:
+
 ```csv
 merchant_category,fraud_reason,attempt_count,total_amount,avg_amount,max_amount
 Electronics,HIGH_VALUE,12,125000.50,10416.71,25000.00
@@ -631,6 +598,7 @@ Groceries,HIGH_VALUE,0,0.00,0.00,0.00
 **Generated**: Every 6 hours by Airflow task `generate_reconciliation_report`
 
 **Key Columns**:
+
 ```csv
 Report ID, Window Start, Window End,
 Total Ingress Transactions, Total Ingress Amount,
@@ -644,7 +612,8 @@ Validated Transactions, Validated Amount (%)
 
 **Key Metric**: Fraud % should be ~5% (controlled injection rate)
 
-**Usage**: 
+**Usage**:
+
 - Finance team reconciles ingress vs validated amounts
 - Compliance verifies completeness
 - Fraud team monitors detection rate trends
@@ -658,6 +627,7 @@ Validated Transactions, Validated Amount (%)
 **Format**: Apache Parquet (columnar, compressed)
 
 **Partition Scheme**:
+
 ```
 /data/warehouse/
 ├── date=2026-05-08/
@@ -670,6 +640,7 @@ Validated Transactions, Validated Amount (%)
 ```
 
 **Query Example** (using PySpark):
+
 ```python
 from pyspark.sql import SparkSession
 
@@ -758,6 +729,7 @@ Late event at 14:05 with event_time=13:58 → DROPPED
 ```
 
 **Why 5 minutes?**
+
 - Financial transactions rarely delayed > 5 minutes
 - Catches late data without waiting forever
 - Trade-off: correctness vs. latency
@@ -817,12 +789,12 @@ If Spark crashes and restarts:
 
 **Privacy Risks:**
 
-| Risk | Severity | Mitigation |
-|------|----------|-----------|
-| **User Tracking** | High | Hash user_id + purge old location data |
-| **Financial Profiling** | High | Aggregate before sharing with analytics team |
-| **Movement Patterns** | High | Only store country, not exact location |
-| **Behavioral Analysis** | Medium | Limit data retention to 30 days |
+| Risk                          | Severity | Mitigation                                   |
+| ----------------------------- | -------- | -------------------------------------------- |
+| **User Tracking**       | High     | Hash user_id + purge old location data       |
+| **Financial Profiling** | High     | Aggregate before sharing with analytics team |
+| **Movement Patterns**   | High     | Only store country, not exact location       |
+| **Behavioral Analysis** | Medium   | Limit data retention to 30 days              |
 
 #### 2. Algorithm Bias
 
@@ -844,6 +816,7 @@ Impact: Same rule affects different groups differently
 ```
 
 **Recommended mitigation:**
+
 ```python
 # Risk-adjusted threshold
 user_avg_transaction = get_user_history(user_id).average_amount()
@@ -884,15 +857,16 @@ Result: Structural bias institutionalized as "ground truth"
 
 #### Policy 1: Data Retention
 
-| Data Type | Retention | Justification |
-|-----------|-----------|---------------|
-| **Raw Transactions** | 7 days | Fraud detection window |
-| **Fraud Alerts** | 90 days | Compliance investigation |
-| **Validated Transactions** | 7 years | Financial audit requirements |
-| **Location Data** | 30 days | Impossible-travel detection only |
-| **User IDs** | Indefinite | Pattern analysis (hashed) |
+| Data Type                        | Retention  | Justification                    |
+| -------------------------------- | ---------- | -------------------------------- |
+| **Raw Transactions**       | 7 days     | Fraud detection window           |
+| **Fraud Alerts**           | 90 days    | Compliance investigation         |
+| **Validated Transactions** | 7 years    | Financial audit requirements     |
+| **Location Data**          | 30 days    | Impossible-travel detection only |
+| **User IDs**               | Indefinite | Pattern analysis (hashed)        |
 
 **Implementation** (PostgreSQL):
+
 ```sql
 -- Automatic purging via Airflow
 CREATE PROCEDURE purge_old_data() AS $$
@@ -908,12 +882,12 @@ $$ LANGUAGE plpgsql;
 
 #### Policy 2: Access Control
 
-| Role | Fraud Alerts | Transactions | User IDs |
-|------|-------------|-------------|----------|
-| **Fraud Analyst** | ✓ Read | ✓ Limited | Hashed |
-| **DB Admin** | ✓ Admin | ✓ Admin | ✓ |
-| **Compliance Officer** | ✓ Read (summaries) | ✗ | ✗ |
-| **Data Scientist** | Aggregated only | Aggregated only | Anonymized |
+| Role                         | Fraud Alerts        | Transactions    | User IDs   |
+| ---------------------------- | ------------------- | --------------- | ---------- |
+| **Fraud Analyst**      | ✓ Read             | ✓ Limited      | Hashed     |
+| **DB Admin**           | ✓ Admin            | ✓ Admin        | ✓         |
+| **Compliance Officer** | ✓ Read (summaries) | ✗              | ✗         |
+| **Data Scientist**     | Aggregated only     | Aggregated only | Anonymized |
 
 ```sql
 -- PostgreSQL RBAC
@@ -925,6 +899,7 @@ REVOKE ALL ON transactions_raw FROM fraud_analyst;  -- Hidden
 #### Policy 3: Data Minimization
 
 **Current Implementation:**
+
 ```python
 # Only transmit essential fields
 required_fields = {
@@ -947,6 +922,7 @@ required_fields = {
 #### Policy 4: Consent & Opt-out
 
 **Recommended Addition:**
+
 ```sql
 CREATE TABLE user_consent (
     user_id VARCHAR(32),
@@ -985,6 +961,7 @@ TRIGGER audit_fraud_alerts()
 #### Policy 6: Transparency
 
 **When a transaction is flagged:**
+
 ```json
 {
   "alert_id": 5234,
@@ -1019,7 +996,7 @@ CREATE TABLE transactions_raw (
 CREATE INDEX idx_txn_raw_user_time ON transactions_raw (user_id, event_timestamp);
 ```
 
-**Retention**: 7 days  
+**Retention**: 7 days
 **Purpose**: Immutable audit log of all ingested transactions
 
 ---
@@ -1043,7 +1020,7 @@ CREATE INDEX idx_fraud_user ON fraud_alerts (user_id);
 CREATE INDEX idx_fraud_reason ON fraud_alerts (fraud_reason);
 ```
 
-**Retention**: 90 days  
+**Retention**: 90 days
 **Purpose**: Real-time fraud detection alerts
 
 ---
@@ -1063,7 +1040,7 @@ CREATE TABLE validated_transactions (
 );
 ```
 
-**Retention**: 7 years  
+**Retention**: 7 years
 **Purpose**: Non-fraudulent transactions for warehouse
 
 ---
@@ -1223,10 +1200,8 @@ environment:
 
 ## Deliverables Checklist
 
-✅ **Architecture Diagram** — Complete Lambda Architecture with all layers  
-✅ **Source Code** — Producer, Spark, Airflow DAGs, Docker Compose  
-✅ **Reports** — Fraud by category, Reconciliation CSV (auto-generated)  
-✅ **Project Report** — This README covers:
+✅ **Architecture Diagram** — Complete Lambda Architecture with all layers✅ **Source Code** — Producer, Spark, Airflow DAGs, Docker Compose✅ **Reports** — Fraud by category, Reconciliation CSV (auto-generated)✅ **Project Report** — This README covers:
+
 - ✅ Technology justification (each component)
 - ✅ Event-time vs. processing-time handling (detailed)
 - ✅ Ethics & data governance (privacy, bias, compliance)
@@ -1238,20 +1213,24 @@ environment:
 ### Scenario Compliance
 
 ✅ **Data Source (Producer)**: [transaction_producer.py](producer/transaction_producer.py)
+
 - Generates `{user_id, timestamp, merchant_category, amount, location}`
 - Controlled fraud injection (HIGH_VALUE & IMPOSSIBLE_TRAVEL)
 
 ✅ **Real-Time Processing (Spark)**: [fraud_detector.py](spark/fraud_detector.py)
+
 - HIGH_VALUE detection (amount > $5,000)
 - IMPOSSIBLE_TRAVEL detection (2 countries in 10 minutes)
 - Writes to fraud_alerts immediately
 
 ✅ **Batch Orchestration (Airflow)**: [dag.py](airflow/dag.py)
+
 - Triggers every 6 hours
 - Moves validated data to Parquet warehouse
 - Generates reconciliation reports
 
 ✅ **Analytic Reports**:
+
 - Fraud Attempts by Merchant Category ([example](docs/REPORT.md))
 - Reconciliation Report (Ingress vs Validated)
 
@@ -1265,6 +1244,6 @@ environment:
 
 ---
 
-**Status**: ✅ Production-Ready  
-**Last Updated**: May 9, 2026  
+**Status**: ✅ Production-Ready
+**Last Updated**: May 9, 2026
 **Version**: 2.0.0
