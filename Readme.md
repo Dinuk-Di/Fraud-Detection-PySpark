@@ -193,8 +193,7 @@ Query example: "Find all validated transactions in May" → Only scan relevant d
 
 ### System Diagram (Complete Lambda Pipeline)
 
-```
-'''```mermaid
+```mermaid
 flowchart TD
     A["🐍 Python Producer\\ntransaction_producer.py\\n• 2 TPS, 20 users, 8 countries\\n• HIGH_VALUE fraud: 5%\\n• IMPOSSIBLE_TRAVEL fraud: 5%"]
 
@@ -247,55 +246,44 @@ flowchart TD
     P2 --> T2
     T3 --> W1
     T5 --> R1
-    T6 --> R2```'''
+    T6 --> R2
 ```
 
 ### Data Flow Example: Impossible Travel Detection
 
 ```
-Event Sequence (event_timestamp-based, not processing_time):
+```mermaid
+sequenceDiagram
+    participant P as 🐍 Producer
+    participant K as 📨 Kafka
+    participant S as ⚡ Spark Streaming
+    participant PG as 🗄️ PostgreSQL
+    participant AF as 🔄 Airflow (6h later)
+    participant WH as 🗃️ Parquet Warehouse
 
-14:00:30 UTC - User transacts in New York
-  ├─ transaction_id: txn_nyc_001
-  ├─ user_id: user_123
-  ├─ location: "New York, US"
-  ├─ country: "US"
-  └─ amount: $450.00
+    Note over P,K: 14:00:30 UTC
+    P->>K: txn_nyc_001 | user_123 | New York, US | $450.00
 
-              [10-minute event-time window active: 14:00 - 14:10]
+    Note over P,K: 14:08:15 UTC (within same 10-min window)
+    P->>K: txn_lnd_001 | user_123 | London, GB | $350.00
 
-14:08:15 UTC - SAME USER transacts in London (WITHIN 10-min window!)
-  ├─ transaction_id: txn_lnd_001
-  ├─ user_id: user_123
-  ├─ location: "London, GB"
-  ├─ country: "GB"
-  └─ amount: $350.00
+    K->>S: Micro-batch consumed
 
-              IMPOSSIBLE TRAVEL DETECTED!
-            
-              Spark groups by (user_id, window):
-              ├─ user_123 in window [14:00-14:10]
-              ├─ countries_seen = {"US", "GB"}
-              └─ size(countries_seen) = 2 > 1 → FRAUD!
+    Note over S: Groups by (user_id, event_time_window[14:00–14:10])
+    Note over S: user_123 → countries_seen = {US, GB} → size=2 > 1
+    Note over S: ⚠️ IMPOSSIBLE TRAVEL DETECTED
 
-              Both transactions flagged to fraud_alerts:
-              ├─ alert_1: txn_nyc_001, IMPOSSIBLE_TRAVEL, $450
-              └─ alert_2: txn_lnd_001, IMPOSSIBLE_TRAVEL, $350
+    S->>PG: INSERT alert_1: txn_nyc_001, IMPOSSIBLE_TRAVEL, $450
+    S->>PG: INSERT alert_2: txn_lnd_001, IMPOSSIBLE_TRAVEL, $350
 
-              PostgreSQL fraud_alerts table (real-time):
-              ├─ INSERT alert_1 (5 seconds after event)
-              └─ INSERT alert_2 (5 seconds after event)
-            
-              Available for immediate:
-              ├─ Real-time fraud investigation
-              ├─ User notification
-              └─ Transaction blocking
-            
-              6 hours later, Airflow batch job:
-              ├─ SELECT these 2 frauds from fraud_alerts
-              ├─ GROUP BY merchant_category
-              ├─ Generate reconciliation report
-              └─ Archive validated transactions to Parquet
+    Note over PG: Real-time availability < 5 seconds after event
+    Note over PG: Available for: fraud investigation, user notification, tx blocking
+
+    Note over AF,WH: 6 hours later — Airflow batch job
+    AF->>PG: SELECT frauds from fraud_alerts (last 6h)
+    AF->>PG: GROUP BY merchant_category → reconciliation
+    AF->>WH: Archive validated transactions to Parquet
+    AF->>AF: Generate CSV reports
 ```
 
 ---
@@ -664,25 +652,31 @@ df.groupBy("merchant_category").agg(
 In financial fraud, **timing precision is critical**:
 
 ```
-14:00:00 UTC: User in New York (event_time)
-              ↓ [network latency, queueing]
-14:00:05 UTC: Kafka receives message (processing_time)
-              ↓ [Spark micro-batch delay]
-14:00:15 UTC: Spark processes message
-              ↓ [database write]
-14:00:20 UTC: Alert in database
+```mermaid
+sequenceDiagram
+    participant TX as 💳 Transaction Event
+    participant KF as 📨 Kafka
+    participant SP as ⚡ Spark
+    participant DB as 🗄️ PostgreSQL
 
-For impossible-travel detection:
-- User in NYC at 14:00:00 (event_time)
-- Same user in London at 14:08:00 (event_time)
-- 8 minutes apart = within 10-minute window = FRAUD!
+    Note over TX: 14:00:00 UTC (event_time)
+    TX->>KF: [network latency + queuing]
+    Note over KF: 14:00:05 UTC (processing_time)
+    KF->>SP: [Spark micro-batch delay]
+    Note over SP: 14:00:15 UTC — processes message
+    SP->>DB: [database write]
+    Note over DB: 14:00:20 UTC — Alert stored
 
-If we grouped by PROCESSING_TIME instead:
-- Messages might arrive out-of-order
-- NYC message delayed to 14:08:30
-- London message at 14:08:15
-- Processing order: London (14:08:15), NYC (14:08:30)
-- Would miss impossible travel!
+    Note over TX,DB: ⚠️ Why event_time matters for impossible-travel
+    Note over TX: User in NYC at 14:00:00 (event_time)
+    Note over TX: Same user in London at 14:08:00 (event_time)
+    Note over TX: → 8 min apart = within 10-min window = FRAUD ✓
+
+    Note over TX,DB: ❌ If using processing_time instead
+    Note over KF: NYC message delayed → arrives 14:08:30
+    Note over KF: London message arrives 14:08:15
+    Note over SP: Processing order: London first, then NYC
+    Note over SP: → Out-of-order → misses impossible travel ✗
 ```
 
 ### Our Solution: Event-Time Windowing with Watermarks
@@ -737,21 +731,24 @@ Late event at 14:05 with event_time=13:58 → DROPPED
 #### Step 3: Tumbling Windows (Not Sliding)
 
 ```
-10-minute TUMBLING windows:
+```mermaid
+gantt
+    title 10-Minute Tumbling Event-Time Windows
+    dateFormat HH:mm
+    axisFormat %H:%M
 
-Event Time ─────────────────────────────────
-14:00:00     14:10:00     14:20:00     14:30:00
-     │            │            │
-     └─Window 1──┘
-                    └─Window 2──┘
-                                └─Window 3──┘
+    section Windows
+    Window 1 (14:00 – 14:10) : w1, 14:00, 10m
+    Window 2 (14:10 – 14:20) : w2, 14:10, 10m
+    Window 3 (14:20 – 14:30) : w3, 14:20, 10m
 
-Results:
-- Events 14:00-14:10 → Grouped in Window 1
-- Events 14:10-14:20 → Grouped in Window 2 (NOT overlapping)
+    section Fraud Example
+    NYC txn (user_123) : crit, nyc, 14:00, 1m
+    London txn (user_123) — FRAUD ✓ : crit, lon, 14:08, 1m
 
-User in NYC at 14:00 + London at 14:08 = Window 1 fraud ✓
-User in NYC at 14:00 + London at 14:16 = Different windows, NO fraud ✓
+    section No-Fraud Example
+    NYC txn (user_456) : nyc2, 14:00, 1m
+    London txn (user_456) — Different window ✓ : nyc3, 14:16, 1m
 ```
 
 #### Step 4: Guarantees
