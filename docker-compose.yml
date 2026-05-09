@@ -12,8 +12,8 @@ x-airflow-common: &airflow-common
     # App DB connection for DAGs
     APP_DB_CONN: postgresql://appuser:apppassword@postgres/frauddb
   volumes:
-    - ./fraud-detection/airflow/dags:/opt/airflow/dags
-    - ./fraud-detection/data:/data
+    - ./airflow:/opt/airflow/dags
+    - ./data:/data
     - airflow-logs:/opt/airflow/logs
   depends_on:
     postgres:
@@ -67,20 +67,11 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    command: >
+    command: |-
       bash -c "
         echo 'Creating Kafka topics...' &&
-        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists
-          --bootstrap-server kafka:9092
-          --topic transactions
-          --partitions 4
-          --replication-factor 1
-          --config retention.ms=604800000 &&
-        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists
-          --bootstrap-server kafka:9092
-          --topic fraud-alerts
-          --partitions 2
-          --replication-factor 1 &&
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic transactions --partitions 4 --replication-factor 1 --config retention.ms=604800000 &&
+        /opt/kafka/bin/kafka-topics.sh --create --if-not-exists --bootstrap-server kafka:9092 --topic fraud-alerts --partitions 2 --replication-factor 1 &&
         echo 'Topics created successfully.' &&
         /opt/kafka/bin/kafka-topics.sh --list --bootstrap-server kafka:9092
       "
@@ -101,8 +92,8 @@ services:
       POSTGRES_PASSWORD: postgres
     volumes:
       - postgres-data:/var/lib/postgresql/data
-      - ./fraud-detection/db/create_multiple_dbs.sh:/docker-entrypoint-initdb.d/01_create_dbs.sh
-      - ./fraud-detection/db/init.sql:/docker-entrypoint-initdb.d/02_init.sql
+      - ./db/create_multiple_dbs.sh:/docker-entrypoint-initdb.d/01_create_dbs.sh
+      - ./db/init.sql:/docker-entrypoint-initdb.d/02_init.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
@@ -116,7 +107,7 @@ services:
   # ─────────────────────────────────────────────
   producer:
     build:
-      context: ./fraud-detection/producer
+      context: ./producer
       dockerfile: Dockerfile
     container_name: producer
     depends_on:
@@ -140,6 +131,11 @@ services:
     image: apache/spark:3.5.0
     container_name: spark-master
     hostname: spark-master
+    command: >
+      /opt/spark/bin/spark-class org.apache.spark.deploy.master.Master
+      --ip spark-master
+      --port 7077
+      --webui-port 8080
     environment:
       - SPARK_MODE=master
       - SPARK_RPC_AUTHENTICATION_ENABLED=no
@@ -149,13 +145,19 @@ services:
       - "7077:7077"
     networks:
       - fraud_net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   # ─────────────────────────────────────────────
   # SPARK STREAMING JOB
   # ─────────────────────────────────────────────
   spark-streaming:
     build:
-      context: ./fraud-detection/spark
+      context: ./spark
       dockerfile: Dockerfile
     container_name: spark-streaming
     depends_on:
@@ -175,8 +177,8 @@ services:
       POSTGRES_PASSWORD: apppassword
       SPARK_MASTER: spark://spark-master:7077
     volumes:
-      - ./fraud-detection/data:/data
-      - ./fraud-detection/spark/checkpoints:/tmp/spark-checkpoints
+      - ./data:/data
+      - ./spark/checkpoints:/tmp/spark-checkpoints
     ports:
       - "4040:4040"   # Spark Streaming UI
     networks:
@@ -188,16 +190,10 @@ services:
   airflow-init:
     <<: *airflow-common
     container_name: airflow-init
-    command: >
+    command: |-
       bash -c "
         airflow db migrate &&
-        airflow users create
-          --username admin
-          --firstname Admin
-          --lastname User
-          --role Admin
-          --email admin@fraud.local
-          --password admin
+        airflow users create --username admin --firstname Admin --lastname User --role Admin --email admin@fraud.local --password admin
       "
     environment:
       <<: *airflow-common-env
