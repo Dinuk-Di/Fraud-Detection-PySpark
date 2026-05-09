@@ -66,7 +66,7 @@ def read_kafka_stream(spark: SparkSession) -> DataFrame:
         .format("kafka")
         .option("kafka.bootstrap.servers", KAFKA_BOOTSTRAP_SERVERS)
         .option("subscribe", KAFKA_TOPIC)
-        .option("startingOffsets", "latest")
+        .option("startingOffsets", "earliest")
         .option("failOnDataLoss", "false")
         .option("kafka.group.id", "fraud-detector-spark")
         .load()
@@ -156,8 +156,7 @@ def write_fraud_high_value(batch_df: DataFrame, batch_id: int):
     if batch_df.rdd.isEmpty():
         return
 
-    count = batch_df.count()
-    print(f"\n[FRAUD:HIGH_VALUE] Batch {batch_id} — {count} alert(s) detected")
+                # .master(SPARK_MASTER)  # Commenting out for command-line argument usage
 
     alert_df = batch_df.select(
         F.col("transaction_id"),

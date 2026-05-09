@@ -167,15 +167,12 @@ services:
         condition: service_completed_successfully
       postgres:
         condition: service_healthy
-      spark-master:
-        condition: service_started
     environment:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_TOPIC: transactions
       POSTGRES_URL: jdbc:postgresql://postgres:5432/frauddb
       POSTGRES_USER: appuser
       POSTGRES_PASSWORD: apppassword
-      SPARK_MASTER: spark://spark-master:7077
     volumes:
       - ./data:/data
       - ./spark/checkpoints:/tmp/spark-checkpoints

@@ -36,6 +36,6 @@ RUN mkdir -p /home/spark/.ivy2 && chown -R spark:spark /home/spark/.ivy2
 USER spark
 
 CMD ["spark-submit", \
-  "--master", "local[*]", \
-  "--driver-memory", "1g", \
-  "/opt/spark-app/fraud_detector.py"]
+      "--master", "local[*]", \
+      "--driver-memory", "2g", \
+      "/opt/spark-app/fraud_detector.py"]
