@@ -191,7 +191,7 @@ Query example: "Find all validated transactions in May" → Only scan relevant d
 
 ## Architecture Overview
 
-### System Diagram (Complete Lambda Pipeline)
+### System Diagram
 
 ```mermaid
 flowchart TD
@@ -251,7 +251,6 @@ flowchart TD
 
 ### Data Flow Example: Impossible Travel Detection
 
-```
 ```mermaid
 sequenceDiagram
     participant P as 🐍 Producer
@@ -651,7 +650,6 @@ df.groupBy("merchant_category").agg(
 
 In financial fraud, **timing precision is critical**:
 
-```
 ```mermaid
 sequenceDiagram
     participant TX as 💳 Transaction Event
