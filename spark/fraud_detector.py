@@ -182,8 +182,11 @@ def write_fraud_high_value(batch_df: DataFrame, batch_id: int):
     raw_df = batch_df.select(
         "transaction_id", "user_id", "event_timestamp",
         "merchant_category", "amount", "location", "currency"
-    )
-    raw_df.write.mode("append").jdbc(POSTGRES_URL, "transactions_raw", properties=JDBC_PROPS)
+    ).dropDuplicates(["transaction_id"])
+    
+    existing_raw_df = batch_df.sparkSession.read.jdbc(POSTGRES_URL, "transactions_raw", properties=JDBC_PROPS).select("transaction_id")
+    raw_df_new = raw_df.join(existing_raw_df, "transaction_id", "left_anti")
+    raw_df_new.write.mode("append").jdbc(POSTGRES_URL, "transactions_raw", properties=JDBC_PROPS)
 
 
 def write_fraud_impossible_travel(batch_df: DataFrame, batch_id: int):
@@ -226,17 +229,23 @@ def write_validated(batch_df: DataFrame, batch_id: int):
     validated_df = batch_df.select(
         "transaction_id", "user_id", "event_timestamp",
         "merchant_category", "amount", "location", "currency"
-    )
+    ).dropDuplicates(["transaction_id"])
+
+    existing_val_df = batch_df.sparkSession.read.jdbc(POSTGRES_URL, "validated_transactions", properties=JDBC_PROPS).select("transaction_id")
+    validated_df_new = validated_df.join(existing_val_df, "transaction_id", "left_anti")
 
     (
-        validated_df.write
+        validated_df_new.write
         .mode("append")
         .jdbc(POSTGRES_URL, "validated_transactions", properties=JDBC_PROPS)
     )
 
     # Write to raw transactions table
+    existing_raw_df = batch_df.sparkSession.read.jdbc(POSTGRES_URL, "transactions_raw", properties=JDBC_PROPS).select("transaction_id")
+    raw_df_new = validated_df.join(existing_raw_df, "transaction_id", "left_anti")
+
     (
-        validated_df.write
+        raw_df_new.write
         .mode("append")
         .jdbc(POSTGRES_URL, "transactions_raw", properties=JDBC_PROPS)
     )
